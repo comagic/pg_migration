@@ -1,0 +1,12 @@
+*/__pycache__/*
+*.pyc
+.cache
+*.egg*
+*.ve*
+venv
+.coverage
+.report*
+build*
+.pytest_cache*
+.idea
+.DS_Store
