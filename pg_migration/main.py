@@ -4,6 +4,7 @@ import asyncio
 
 from .migration import Migration
 from .pg import Pg
+from .release_generator import ReleaseGenerator
 
 
 async def run(args):
@@ -13,8 +14,15 @@ async def run(args):
         await Migration(args, pg).print_diff()
 
     elif args.command == 'log':
-        await Migration(args, None).print_log()
+        Migration(args).print_log()
 
+    elif args.command == 'generate':
+        migration = Migration(args)
+        ReleaseGenerator(args, migration).generate_release()
+
+
+    else:
+        raise Exception(f'unknown command {args.command}')
 
 def main():
     arg_parser = argparse.ArgumentParser(

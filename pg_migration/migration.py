@@ -1,4 +1,4 @@
-import argparse
+from argparse import Namespace
 import os
 import re
 
@@ -6,11 +6,13 @@ from .pg import Pg
 
 
 class Migration:
-    args: argparse.Namespace
+    args: Namespace
     pg: Pg
     chain: dict
+    head: str
+    tail: str
 
-    def __init__(self, args, pg):
+    def __init__(self, args, pg=None):
         self.args = args
         self.pg = pg
         self.chain = {}
@@ -18,7 +20,7 @@ class Migration:
 
     @staticmethod
     def get_parent_release(file_name, header):
-        res = re.match('parent_release: (.*)', header)
+        res = re.match('--parent_release: (.*)', header)
         if not res:
             raise Exception(f'"parent_release" not found in {file_name}')
         res = res.groups()[0]
@@ -31,7 +33,16 @@ class Migration:
             file_name = os.path.join(root, release, 'release.sql')
             header = open(file_name).readline()
             parent = self.get_parent_release(file_name, header)
+            if parent in self.chain:
+                raise Exception(f'parent "{parent}" specified more than once')
             self.chain[parent] = release
+        parents = set(self.chain.keys())
+        children = set(self.chain.values())
+        for release in parents.union(children):
+            if release not in parents:
+                self.head = release
+            if release not in children:
+                self.tail = release
 
     def get_ahead(self, from_version, to_version):
         versions = []
@@ -51,7 +62,7 @@ class Migration:
         for version in self.get_ahead(version, self.args.migration):
             print(version)
 
-    async def print_log(self):
+    def print_log(self):
         from_version = None
         to_version = None
         if ':' in self.args.migration:
