@@ -5,6 +5,7 @@ import asyncio
 from .migration import Migration
 from .pg import Pg
 from .release_generator import ReleaseGenerator
+from .upgrader import Upgrader
 
 
 async def run(args):
@@ -20,9 +21,30 @@ async def run(args):
         migration = Migration(args)
         ReleaseGenerator(args, migration).generate_release()
 
+    elif args.command == 'upgrade':
+        pg = Pg(args)
+        await pg.init_connection()
+        migration = Migration(args, pg)
+        await Upgrader(args, migration, pg).upgrade()
 
     else:
         raise Exception(f'unknown command {args.command}')
+
+
+def build_dsn(args):
+    parts = []
+    if args.host:
+        parts.append(f'host={args.host}')
+    if args.port:
+        parts.append(f'port={args.port}')
+    if args.dbname:
+        parts.append(f'dbname={args.dbname}')
+    if args.user:
+        parts.append(f'user={args.user}')
+    if args.password:
+        parts.append(f'password={args.password}')
+    return ' '.join(parts)
+
 
 def main():
     arg_parser = argparse.ArgumentParser(
@@ -42,6 +64,7 @@ def main():
                             type=str, help='database user password')
     arg_parser.add_argument('migration', help='migration filename', default='head', nargs='?')
     args = arg_parser.parse_args()
+    args.dsn = build_dsn(args)
 
     if not os.access('migrations', os.F_OK):
         arg_parser.error('directory "migrations" not found')

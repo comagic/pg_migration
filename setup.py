@@ -36,7 +36,8 @@ class PyTest(TestCommand):
 setup_requires = []
 
 install_requires = [
-    'asyncpg==0.27.0'
+    'asyncpg==0.27.0',
+    'GitPython==3.1.42',
 ]
 
 tests_require = [
