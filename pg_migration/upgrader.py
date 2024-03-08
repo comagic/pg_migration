@@ -32,7 +32,9 @@ class Upgrader:
 
         os.chdir('./schemas')
         for version in ahead:
-            os.system(f'psql "{self.args.dsn}" -f ../migrations/{version}/release.sql')
+            code = os.system(f'psql "{self.args.dsn}" -f ../migrations/{version}/release.sql') >> 8
+            if code != 0:
+                exit(code)
             await self.pg.set_current_version(version)
         os.chdir('..')
 
