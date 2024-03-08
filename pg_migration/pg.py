@@ -22,8 +22,8 @@ class Pg:
         await self.execute('''
             create schema migration;
             create table migration.release(
-              release text not null, 
-              release_time timestamp with time zone not null default noe()
+              version text not null, 
+              release_time timestamp with time zone not null default now()
             );
         ''')
 
