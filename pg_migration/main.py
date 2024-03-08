@@ -4,6 +4,7 @@ import asyncio
 
 from .migration import Migration
 from .pg import Pg
+from .plpgsql_checker import PlpgsqlChecker
 from .release_generator import ReleaseGenerator
 from .upgrader import Upgrader
 
@@ -26,6 +27,11 @@ async def run(args):
         await pg.init_connection()
         migration = Migration(args, pg)
         await Upgrader(args, migration, pg).upgrade()
+
+    elif args.command == 'plpgsql_check':
+        pg = Pg(args)
+        await pg.init_connection()
+        await PlpgsqlChecker(pg).check()
 
     else:
         raise Exception(f'unknown command {args.command}')
@@ -51,7 +57,7 @@ def main():
         description='Migration control system',
         epilog='Report bugs to <andruuche@gmail.com>.',
         conflict_handler='resolve')
-    arg_parser.add_argument('command', help='diff | upgrade | generate | log')
+    arg_parser.add_argument('command', help='{ diff | upgrade | generate | log | plpgsql_check }')
     arg_parser.add_argument('-d', '--dbname',
                             type=str, help='database name to connect to')
     arg_parser.add_argument('-h', '--host',

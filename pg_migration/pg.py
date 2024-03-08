@@ -48,3 +48,38 @@ class Pg:
             insert into migration.release(version)
               values ($1)
         ''', version)
+
+    async def plpgsql_check_functions(self):
+        return await self.fetch('''
+            select p.oid::regproc as func, 
+                   pcf.error
+              from pg_proc p
+             inner join pg_language l
+                     on l.oid = p.prolang
+             cross join plpgsql_check_function(p.oid::regprocedure, 
+                                               other_warnings := false, 
+                                               extra_warnings := false) as pcf(error)
+             where l.lanname = 'plpgsql' AND
+                   p.prorettype <> 'trigger'::regtype and
+                   p.pronamespace <> 'pg_catalog'::regnamespace
+             order by 1;
+        ''')
+
+    async def plpgsql_check_triggers(self):
+        return await self.fetch('''
+            select pcf.functionid::regproc as func,
+                   t.tgrelid::regclass as rel,
+                   pcf.message as error
+              from pg_proc p
+             inner join pg_language l
+                     on l.oid = p.prolang
+             inner join pg_trigger t
+                     on t.tgfoid = p.oid
+             cross join plpgsql_check_function_tb(p.oid, coalesce(t.tgrelid, 0), 
+                                                  other_warnings := false, 
+                                                  extra_warnings := false) as pcf
+             where l.lanname = 'plpgsql' and
+                   p.pronamespace <> 'pg_catalog'::regnamespace and
+                   pcf.functionid::regproc::text <> 'utils.biu_check_query'
+             order by 1, 2;
+        ''')
