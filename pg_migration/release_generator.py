@@ -36,7 +36,8 @@ class ReleaseGenerator:
         self.migration = migration
         self.args = args
 
-    def get_staged_files(self):
+    @staticmethod
+    def get_staged_files():
         res = []
         repo = git.Repo()
         for df in repo.head.commit.diff(git.IndexFile.Index):
@@ -47,7 +48,7 @@ class ReleaseGenerator:
     def get_migration_commands(self):
         res = []
         objects = self.get_staged_files()
-        for o in sorted(objects, key=lambda x:ChangedObject.types.index(x.type)):
+        for o in sorted(objects, key=lambda x: ChangedObject.types.index(x.type)):
             res.extend(o.get_migration_commands())
         return res
 
@@ -55,7 +56,7 @@ class ReleaseGenerator:
         return '\n'.join([
             f'--parent_release: {self.migration.head}',
             '',
-            '\set ON_ERROR_STOP on',
+            '\\set ON_ERROR_STOP on',
             '',
             'begin;',
             '',
