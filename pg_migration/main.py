@@ -2,11 +2,27 @@ import os
 import argparse
 import asyncio
 
+from .initializer import Initializer
 from .migration import Migration
 from .pg import Pg
 from .plpgsql_checker import PlpgsqlChecker
 from .release_generator import ReleaseGenerator
 from .upgrader import Upgrader
+
+
+def build_dsn(args):
+    parts = []
+    if args.host:
+        parts.append(f'host={args.host}')
+    if args.port:
+        parts.append(f'port={args.port}')
+    if args.dbname:
+        parts.append(f'dbname={args.dbname}')
+    if args.user:
+        parts.append(f'user={args.user}')
+    if args.password:
+        parts.append(f'password={args.password}')
+    return ' '.join(parts)
 
 
 async def run(args):
@@ -33,23 +49,11 @@ async def run(args):
         await pg.init_connection()
         await PlpgsqlChecker(pg).check()
 
+    elif args.command == 'init':
+        Initializer(args).initialize()
+
     else:
         raise Exception(f'unknown command {args.command}')
-
-
-def build_dsn(args):
-    parts = []
-    if args.host:
-        parts.append(f'host={args.host}')
-    if args.port:
-        parts.append(f'port={args.port}')
-    if args.dbname:
-        parts.append(f'dbname={args.dbname}')
-    if args.user:
-        parts.append(f'user={args.user}')
-    if args.password:
-        parts.append(f'password={args.password}')
-    return ' '.join(parts)
 
 
 def main():
@@ -57,7 +61,7 @@ def main():
         description='Migration control system',
         epilog='Report bugs to <andruuche@gmail.com>.',
         conflict_handler='resolve')
-    arg_parser.add_argument('command', help='{ diff | upgrade | generate | log | plpgsql_check }')
+    arg_parser.add_argument('command', help='{ diff | upgrade | generate | log | plpgsql_check | init }')
     arg_parser.add_argument('-d', '--dbname',
                             type=str, help='database name to connect to')
     arg_parser.add_argument('-h', '--host',
@@ -72,7 +76,7 @@ def main():
     args = arg_parser.parse_args()
     args.dsn = build_dsn(args)
 
-    if not os.access('migrations', os.F_OK):
+    if not os.access('migrations', os.F_OK) and args.command != 'init':
         arg_parser.error('directory "migrations" not found')
 
     if os.name == 'nt':

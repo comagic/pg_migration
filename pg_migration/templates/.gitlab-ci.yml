@@ -1,0 +1,115 @@
+stages:
+  - build-preveous
+  - test-release
+  - check
+  - clean
+  - set-tag
+  - deploy
+
+build-preveous:
+  stage: build-preveous
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME != "master"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - previous_version=`pg_migration log | tail -n 2 | head -n 1`
+    - echo $previous_version
+    - git checkout $previous_version
+    - pg_import -d ci_cd_tmp --rebuild .
+    - psql -d ci_cd_tmp -c "insert into migration.release(version) values ('$previous_version')"
+
+# -----------------------------------
+
+release:
+  stage: test-release
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME != "master"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - pg_migration -d ci_cd_tmp upgrade
+
+# -----------------------------------
+
+pg-export:
+  stage: check
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME != "master"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - pg_export --clean ci_cd_tmp /tmp/exp
+    - "[ ! -d data/ ] || diff -r /tmp/exp/data/ data/"
+    - diff -r /tmp/exp/schemas/ schemas/
+
+plpgsql-check:
+  stage: check
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME != "master"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - pg_migration -d ci_cd_tmp plpgsql_check
+
+code-style:
+  stage: check
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME != "master"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - comagic_code_style .
+
+auto-tests:
+  stage: check
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME != "master"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - db_test -d tmp:. -t tests/regress/ -v
+
+# -----------------------------------
+
+clean:
+  stage: clean
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME != "master"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - dropdb ci_cd_tmp
+
+set-tag:
+  stage: set-tag
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"'
+  script:
+    - git config --global user.name "${GITLAB_USER_NAME}"
+    - git config --global user.email "${GITLAB_USER_EMAIL}"
+    - current_version=`pg_migration log | tail -n 1`
+    - git tag -a "$current_version" -m ""
+    - git push https://root:$CI_JOB_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ $current_version
+
+# -----------------------------------
+# pre-production
+deploy1-to-pp:
+  stage: deploy
+  environment: pp
+  script:
+    - pg_migration -d cicd_pp upgrade
+  when: manual
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"'
+
+# production
+deploy2-to-cg:
+  stage: deploy
+  environment: cg
+  script:
+    - pg_migration -d cicd_cg upgrade
+  when: manual
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"'
