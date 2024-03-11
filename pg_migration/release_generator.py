@@ -1,3 +1,5 @@
+import os
+
 import git
 
 from .migration import Migration
@@ -24,7 +26,7 @@ class ChangedObject:
         return 'schema'  # FIXME
 
     def get_migration_commands(self):
-        return [f'\\i {self.path}']
+        return [f'\\i {self.path.replace("schemas/", "")}']
 
 
 class ReleaseGenerator:
@@ -49,9 +51,25 @@ class ReleaseGenerator:
             res.extend(o.get_migration_commands())
         return res
 
+    def get_body(self):
+        return '\n'.join([
+            f'--parent_release: {self.migration.head}',
+            '',
+            '\set ON_ERROR_STOP on',
+            '',
+            'begin;',
+            '',
+            '\n'.join(self.get_migration_commands()),
+            '',
+            'commit;',
+            '',
+        ])
+
     def generate_release(self):
-        print(f'--parent_release: {self.migration.head}')
-        print('\nbegin;\n')
-        print('\n'.join(self.get_migration_commands()))
-        print('\ncommit;')
-        print()
+        body = self.get_body()
+        if self.args.migration == 'head':
+            print(body)
+        else:
+            rel_dir = os.path.join('migrations', self.args.migration)
+            os.makedirs(os.path.join('migrations', self.args.migration))
+            open(os.path.join(rel_dir, 'release.sql'), 'a').write(body)
