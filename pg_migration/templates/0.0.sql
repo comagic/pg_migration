@@ -1,5 +1,7 @@
 --parent_release: None
 
+\set ON_ERROR_STOP on
+
 begin;
 
 \i ../extensions/plpgsql_check.sql
