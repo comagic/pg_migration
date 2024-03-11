@@ -107,7 +107,7 @@ set-tag:
     - git config --global user.email "${GITLAB_USER_EMAIL}"
     - current_version=`pg_migration log | tail -n 1`
     - git tag -a "$current_version" -m ""
-    - git push https://root:$CI_JOB_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ $current_version
+    - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ $current_version
 
 # -----------------------------------
 
