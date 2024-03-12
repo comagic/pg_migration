@@ -116,11 +116,10 @@ deploy1-to-pp:
   stage: deploy
   environment: pp
   script:
-    - pg_migration -d cicd_pp upgrade
-    - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ :refs/tags/pp
-    - git tag -fa pp -m ""
-    - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ pp
-  when: manual
+    - pg_migration -d $DEPLOY_DATABASE upgrade
+    - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ :refs/tags/$DEPLOY_ENV_TAG
+    - git tag -fa $DEPLOY_ENV_TAG -m ""
+    - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ $DEPLOY_ENV_TAG
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"'
 
@@ -129,10 +128,9 @@ deploy2-to-cg:
   stage: deploy
   environment: cg
   script:
-    - pg_migration -d cicd_cg upgrade
-    - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ :refs/tags/cg
-    - git tag -fa cg -m ""
-    - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ cg
-  when: manual
+    - pg_migration -d $DEPLOY_DATABASE upgrade
+    - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ :refs/tags/$DEPLOY_ENV_TAG
+    - git tag -fa $DEPLOY_ENV_TAG -m ""
+    - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ $DEPLOY_ENV_TAG
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"'
