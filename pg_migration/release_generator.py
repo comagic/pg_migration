@@ -72,5 +72,5 @@ class ReleaseGenerator:
             print(body)
         else:
             rel_dir = os.path.join('migrations', self.args.migration)
-            os.makedirs(os.path.join('migrations', self.args.migration))
+            os.makedirs(os.path.join('migrations', self.args.migration), exist_ok=True)
             open(os.path.join(rel_dir, 'release.sql'), 'a').write(body)
