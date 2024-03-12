@@ -121,7 +121,9 @@ deploy1-to-pp:
     - git tag -fa $DEPLOY_ENV_TAG -m ""
     - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ $DEPLOY_ENV_TAG
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /auto-deploy/'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"'
+      when: manual
 
 # production
 deploy2-to-cg:
@@ -133,4 +135,6 @@ deploy2-to-cg:
     - git tag -fa $DEPLOY_ENV_TAG -m ""
     - git push https://root:$ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git/ $DEPLOY_ENV_TAG
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master" && $CI_COMMIT_MESSAGE =~ /auto-deploy/'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"'
+      when: manual
