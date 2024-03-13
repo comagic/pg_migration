@@ -2,6 +2,7 @@ import os
 import argparse
 import asyncio
 
+from .gitlab import Gitlab
 from .initializer import Initializer
 from .migration import Migration
 from .pg import Pg
@@ -52,6 +53,9 @@ async def run(args):
     elif args.command == 'init':
         Initializer(args).initialize()
 
+    elif args.command == 'auto_merge':
+        Gitlab().create_merge_request()
+
     else:
         raise Exception(f'unknown command {args.command}')
 
@@ -61,7 +65,7 @@ def main():
         description='Migration control system',
         epilog='Report bugs to <andruuche@gmail.com>.',
         conflict_handler='resolve')
-    arg_parser.add_argument('command', help='{ diff | upgrade | generate | log | plpgsql_check | init }')
+    arg_parser.add_argument('command', help='{ diff | upgrade | generate | log | plpgsql_check | init | auto_merge }')
     arg_parser.add_argument('-d', '--dbname',
                             type=str, help='database name to connect to')
     arg_parser.add_argument('-h', '--host',
