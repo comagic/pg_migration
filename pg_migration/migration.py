@@ -17,6 +17,7 @@ class Migration:
         self.pg = pg
         self.chain = {}
         self.parse('migrations')
+        self.head = None
 
     @staticmethod
     def get_parent_release(file_name, header):

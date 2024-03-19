@@ -37,4 +37,3 @@ class Upgrader:
                 exit(code)
             await self.pg.set_current_version(version)
         os.chdir('..')
-
