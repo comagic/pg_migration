@@ -23,12 +23,12 @@ class Upgrader:
             to_version = self.args.migration
         if current_version == to_version:
             print('database is up to date')
-            return
+            exit(0)
 
         ahead = self.migration.get_ahead(current_version, self.args.migration)
         if not ahead:
             print('cannot determine ahead')
-            return
+            exit(1)
 
         os.chdir('./schemas')
         for version in ahead:
