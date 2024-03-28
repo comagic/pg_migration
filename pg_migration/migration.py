@@ -1,6 +1,7 @@
 from argparse import Namespace
 import os
 import re
+from typing import Optional
 
 from .pg import Pg
 
@@ -9,15 +10,15 @@ class Migration:
     args: Namespace
     pg: Pg
     chain: dict
-    head: str
+    head: Optional[str]
     tail: str
 
     def __init__(self, args, pg=None):
         self.args = args
         self.pg = pg
         self.chain = {}
-        self.parse('migrations')
         self.head = None
+        self.parse('migrations')
 
     @staticmethod
     def get_parent_release(file_name, header):
