@@ -36,7 +36,8 @@ class Migration:
             header = open(file_name).readline()
             parent = self.get_parent_release(file_name, header)
             if parent in self.chain:
-                raise Exception(f'parent "{parent}" specified more than once')
+                print(f'parent "{parent}" specified more than once')
+                exit(1)
             self.chain[parent] = release
         parents = set(self.chain.keys())
         children = set(self.chain.values())
