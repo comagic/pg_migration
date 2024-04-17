@@ -88,9 +88,9 @@ class ReleaseGenerator:
 
     def generate_release(self):
         body = self.get_body()
-        if self.args.migration == 'head':
+        if self.args.version is None:
             print(body)
         else:
-            rel_dir = os.path.join('migrations', self.args.migration)
-            os.makedirs(os.path.join('migrations', self.args.migration), exist_ok=True)
+            rel_dir = os.path.join('migrations', self.args.version)
+            os.makedirs(os.path.join('migrations', self.args.version), exist_ok=True)
             open(os.path.join(rel_dir, 'release.sql'), 'a').write(body)

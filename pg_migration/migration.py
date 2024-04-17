@@ -62,14 +62,14 @@ class Migration:
     async def print_diff(self):
         version = await self.pg.get_current_version()
         print(f'{version}*')
-        for version in self.get_ahead(version, self.args.migration):
+        for version in self.get_ahead(version, self.args.version):
             print(version)
 
     def print_log(self):
         from_version = None
         to_version = None
-        if ':' in self.args.migration:
-            from_version, to_version = self.args.migration.split(':')
+        if self.args.version:
+            from_version, to_version = self.args.version.split(':')
         if from_version:
             print(f'{from_version}')
         for version in self.get_ahead(from_version, to_version):

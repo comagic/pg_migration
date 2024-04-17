@@ -17,21 +17,22 @@ class Upgrader:
 
     async def upgrade(self):
         current_version = await self.pg.get_current_version()
-        if self.args.migration == 'head':
+        if self.args.version == 'head':
             to_version = self.migration.head
         else:
-            to_version = self.args.migration
+            to_version = self.args.version
         if current_version == to_version:
             print('database is up to date')
             exit(0)
 
-        ahead = self.migration.get_ahead(current_version, self.args.migration)
+        ahead = self.migration.get_ahead(current_version, self.args.version)
         if not ahead:
             print('cannot determine ahead')
             exit(1)
 
         os.chdir('./schemas')
         for version in ahead:
+            print(f'psql "{self.args.dsn}" -f ../migrations/{version}/release.sql')
             code = os.system(f'psql "{self.args.dsn}" -f ../migrations/{version}/release.sql') >> 8
             if code != 0:
                 exit(code)

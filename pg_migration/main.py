@@ -13,15 +13,15 @@ from .upgrader import Upgrader
 
 def build_dsn(args):
     parts = []
-    if args.host:
+    if getattr(args, 'host', None):
         parts.append(f'host={args.host}')
-    if args.port:
+    if getattr(args, 'port', None):
         parts.append(f'port={args.port}')
-    if args.dbname:
+    if getattr(args, 'dbname', None):
         parts.append(f'dbname={args.dbname}')
-    if args.user:
+    if getattr(args, 'user', None):
         parts.append(f'user={args.user}')
-    if args.password:
+    if getattr(args, 'password', None):
         parts.append(f'password={args.password}')
     return ' '.join(parts)
 
@@ -61,24 +61,81 @@ async def run(args):
 
 
 def main():
-    arg_parser = argparse.ArgumentParser(
-        description='Migration control system',
-        epilog='Report bugs to <andruuche@gmail.com>.',
-        conflict_handler='resolve')
-    arg_parser.add_argument('command', help='{ diff | upgrade | generate | log | plpgsql_check | init | auto_merge }')
-    arg_parser.add_argument('-d', '--dbname',
+    def add_connection_args(parser):
+        parser.add_argument('-d', '--dbname',
                             type=str, help='database name to connect to')
-    arg_parser.add_argument('-h', '--host',
+        parser.add_argument('-h', '--host',
                             type=str, help='database server host or socket directory')
-    arg_parser.add_argument('-p', '--port',
+        parser.add_argument('-p', '--port',
                             type=str, help='database server port')
-    arg_parser.add_argument('-U', '--user',
+        parser.add_argument('-U', '--user',
                             type=str, help='database user name')
-    arg_parser.add_argument('-W', '--password',
+        parser.add_argument('-W', '--password',
                             type=str, help='database user password')
-    arg_parser.add_argument('migration', help='migration filename', default='head', nargs='?')
+
+    arg_parser = argparse.ArgumentParser(
+        epilog='Report bugs: https://github.com/comagic/pg_migration/issues',
+        conflict_handler='resolve',
+        # usage='pg_migration [-h] command ...'
+    )
+
+    subparsers = arg_parser.add_subparsers(
+        dest='command',
+        title='commands'
+    )
+
+    parser_log = subparsers.add_parser(
+        'log',
+        help='print chain of migrations between from_version:to_version (or tail:head)'
+    )
+    parser_log.add_argument('version', help='from_version:to_version', nargs='?')
+
+    parser_diff = subparsers.add_parser(
+        'diff',
+        help='show difference between database and specified (or last) version',
+        conflict_handler='resolve',
+    )
+    add_connection_args(parser_diff)
+    parser_diff.add_argument('version', help='difference between database and this version', nargs='?')
+
+    parser_upgrade = subparsers.add_parser(
+        'upgrade',
+        help='upgrade database up to specified (or last) version',
+        conflict_handler='resolve',
+    )
+    add_connection_args(parser_upgrade)
+    parser_upgrade.add_argument('version', help='upgrade up to this version', default='head', nargs='?')
+
+    parser_generate = subparsers.add_parser(
+        'generate',
+        help='generate migration file'
+    )
+    parser_generate.add_argument('version', help='new version', nargs='?')
+
+    parser_plpgsql_check = subparsers.add_parser(
+        'plpgsql_check',
+        help='check functions and triggers with plpgsql_check extension',
+        conflict_handler='resolve'
+    )
+    add_connection_args(parser_plpgsql_check)
+
+    subparsers.add_parser(
+        'auto_merge',
+        help='creates merge-request when magic word "auto-commit" / "auto-deploy" is passed (uses in cd/cd)'
+    )
+
+    parser_init = subparsers.add_parser(
+        'init',
+        help='build migration which will create scheme migration and table migration.release',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_init.add_argument('version', help='from_version:to_version', nargs='?', default='0.0')
+
     args = arg_parser.parse_args()
     args.dsn = build_dsn(args)
+
+    if args.command == 'log' and args.version and ':' not in args.version:
+        parser_log.error('version needs constant ":", use "pg_migration log -h" for more details')
 
     if not os.access('migrations', os.F_OK) and args.command != 'init':
         arg_parser.error('directory "migrations" not found')
