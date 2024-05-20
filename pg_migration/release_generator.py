@@ -1,4 +1,6 @@
+import argparse
 import os
+import sys
 
 import git
 
@@ -50,11 +52,17 @@ class ChangedObject:
 
 
 class ReleaseGenerator:
+    args: argparse.Namespace
     migration: Migration
 
     def __init__(self, args, migration):
-        self.migration = migration
         self.args = args
+        self.migration = migration
+
+    @staticmethod
+    def error(message):
+        print(message, file=sys.stderr)
+        exit(1)
 
     @staticmethod
     def get_staged_files():
@@ -73,8 +81,12 @@ class ReleaseGenerator:
         return res
 
     def get_body(self):
+        if len(self.migration.heads) > 1:
+            heads_versions = ", ".join(release.version for release in self.migration.heads)
+            self.error(f'several heads found: "{heads_versions}", use "pg_migration log" for details')
+
         return '\n'.join([
-            f'--parent_release: {self.migration.head}',
+            f'--parent_release: {self.migration.head.version}',
             '',
             '\\set ON_ERROR_STOP on',
             '',

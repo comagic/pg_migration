@@ -104,7 +104,7 @@ def main():
         conflict_handler='resolve',
     )
     add_connection_args(parser_upgrade)
-    parser_upgrade.add_argument('version', help='upgrade up to this version', default='head', nargs='?')
+    parser_upgrade.add_argument('version', help='upgrade up to this version', nargs='?')
 
     parser_generate = subparsers.add_parser(
         'generate',

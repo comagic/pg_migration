@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 
 from .migration import Migration
 from .pg import Pg
@@ -15,10 +16,15 @@ class Upgrader:
         self.migration = migration
         self.pg = pg
 
+    @staticmethod
+    def error(message):
+        print(message, file=sys.stderr)
+        exit(1)
+
     async def upgrade(self):
         current_version = await self.pg.get_current_version()
-        if self.args.version == 'head':
-            to_version = self.migration.head
+        if self.args.version is None:
+            to_version = self.migration.head.version
         else:
             to_version = self.args.version
         if current_version == to_version:
@@ -27,14 +33,17 @@ class Upgrader:
 
         ahead = self.migration.get_ahead(current_version, self.args.version)
         if not ahead:
-            print('cannot determine ahead')
-            exit(1)
+            self.error('cannot determine ahead')
 
         os.chdir('./schemas')
-        for version in ahead:
+        for release in ahead:
+            version = release.version
+            if version == current_version:
+                continue
             print(f'psql "{self.args.dsn}" -f ../migrations/{version}/release.sql')
             code = os.system(f'psql "{self.args.dsn}" -f ../migrations/{version}/release.sql') >> 8
             if code != 0:
+                os.chdir('..')
                 exit(code)
             await self.pg.set_current_version(version)
         os.chdir('..')
