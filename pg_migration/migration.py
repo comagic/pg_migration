@@ -145,7 +145,8 @@ class Migration:
     def print_branch(self, release, stop_version, level=0):
         tree = '| ' * level
         while True:
-            print(f'{tree}{release.version}')
+            deleted = ' (deleted)' if release.is_deleted else ''
+            print(f'{tree}{release.version}{deleted}')
             if not release.children or release.version == stop_version:
                 break
             elif len(release.children) == 1:
