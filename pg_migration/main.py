@@ -88,6 +88,10 @@ def main():
         'log',
         help='print chain of migrations between from_version:to_version (or tail:head)'
     )
+    parser_log.add_argument('--no-multi-heads',
+                            required=False,
+                            action='store_true',
+                            help='raise error if multi heads detected')
     parser_log.add_argument('version', help='from_version:to_version', nargs='?')
 
     parser_diff = subparsers.add_parser(

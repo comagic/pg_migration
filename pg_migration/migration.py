@@ -46,7 +46,7 @@ class Migration:
 
     @staticmethod
     def error(message):
-        print(message, file=sys.stderr)
+        print(f'ERROR: {message}', file=sys.stderr)
         exit(1)
 
     def get_parent_version(self, file_name, header):
@@ -141,6 +141,9 @@ class Migration:
 
         if len(self.tails) > 1:
             self.error('several unrelated branches found')
+
+        if len(self.heads) > 1 and self.args.no_multi_heads:
+            self.error(f'multi head detected, use "pg_migration log" (without --no-multi-heads) for details')
 
     def print_branch(self, release, stop_version, level=0):
         tree = '| ' * level

@@ -61,7 +61,7 @@ class ReleaseGenerator:
 
     @staticmethod
     def error(message):
-        print(message, file=sys.stderr)
+        print(f'ERROR: {message}', file=sys.stderr)
         exit(1)
 
     @staticmethod
