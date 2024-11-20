@@ -1,9 +1,15 @@
-﻿# pg-migration
+﻿## pg-migration - ci/cd automation
 
-## instalation
+Migration control system for postgres database
+
+## installation
+
+```
 pip install pg-migration
+```
 
 ## usage
+
 ```
 $ pg_migration --help
 usage: pg_migration [-h] {log,diff,upgrade,generate,plpgsql_check,auto_merge,init} ...
