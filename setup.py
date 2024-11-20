@@ -7,7 +7,7 @@ PACKAGE_TYPE = 'pg-tools'
 PACKAGE_NAME = 'pg-migration'
 PACKAGE_DESC = 'pg to git converter'
 PACKAGE_LONG_DESC = 'Convert postgres database to directory with object files'
-PACKAGE_VERSION = '0.0.0'
+PACKAGE_VERSION = '0.5.1'
 
 
 class PyTest(TestCommand):
@@ -36,14 +36,14 @@ class PyTest(TestCommand):
 setup_requires = []
 
 install_requires = [
-    'asyncpg==0.27.0',
+    'asyncpg>=0.27.0,<0.31.0',
     'GitPython==3.1.42',
     'urllib3==1.26.6',
     'python-gitlab==4.4.0'
 ]
 
 tests_require = [
-    'flake8>=4,<5',
+    'flake8>=5,<6',
     'pytest',
     'pytest-cov',
     'pytest-flake8',
