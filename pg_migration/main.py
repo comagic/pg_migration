@@ -9,6 +9,10 @@ from .pg import Pg
 from .plpgsql_checker import PlpgsqlChecker
 from .release_generator import ReleaseGenerator
 from .upgrader import Upgrader
+from .distribute_upgrader import DistributeUpgrader
+
+
+node_format = 'migration_path -> [user@]host:port/database'
 
 
 def build_dsn(args):
@@ -40,10 +44,25 @@ async def run(args):
         ReleaseGenerator(args, migration).generate_release()
 
     elif args.command == 'upgrade':
-        pg = Pg(args)
-        await pg.init_connection()
-        migration = Migration(args, pg)
-        await Upgrader(args, migration, pg).upgrade()
+        if not args.distribute:
+            pg = Pg(args)
+            await pg.init_connection()
+            migration = Migration(args, pg)
+            await Upgrader(args, migration, pg).upgrade()
+        else:
+            upgraders = []
+            for node in args.node:
+                if '->' not in node:
+                    print(f'node "{node}" not match format "{node_format}"')
+                    exit(1)
+                migration_path, dsn = map(str.strip, node.split('->'))
+                migration_path = os.path.expanduser(migration_path)
+                upgraders.append(DistributeUpgrader(dsn, migration_path))
+            res = await asyncio.gather(*[upgrader.run_before_commit() for upgrader in upgraders])
+            if res.count(DistributeUpgrader.READY) == len(upgraders):
+                await asyncio.gather(*[upgrader.commit() for upgrader in upgraders])
+            else:
+                await asyncio.gather(*[upgrader.rollback() for upgrader in upgraders])
 
     elif args.command == 'plpgsql_check':
         pg = Pg(args)
@@ -88,10 +107,12 @@ def main():
         'log',
         help='print chain of migrations between from_version:to_version (or tail:head)'
     )
-    parser_log.add_argument('--no-multi-heads',
-                            required=False,
-                            action='store_true',
-                            help='raise error if multi heads detected')
+    parser_log.add_argument(
+        '--no-multi-heads',
+        required=False,
+        action='store_true',
+        help='raise error if multi heads detected'
+    )
     parser_log.add_argument('version', help='from_version:to_version', nargs='?')
 
     parser_diff = subparsers.add_parser(
@@ -109,6 +130,13 @@ def main():
     )
     add_connection_args(parser_upgrade)
     parser_upgrade.add_argument('version', help='upgrade up to this version', nargs='?')
+    parser_upgrade.add_argument(
+        '--distribute',
+        required=False,
+        action='store_true',
+        help='distribute transaction on multi node (--node)'
+    )
+    parser_upgrade.add_argument('--node', action='append', help=f'format: "{node_format}"', default=[])
 
     parser_generate = subparsers.add_parser(
         'generate',
@@ -140,6 +168,12 @@ def main():
 
     if args.command == 'log' and args.version and ':' not in args.version:
         parser_log.error('version needs constant ":", use "pg_migration log -h" for more details')
+
+    if args.command == 'upgrade':
+        if args.distribute and not args.node:
+            parser_log.error('cannot use --distribute without any --node')
+        if args.node and not args.distribute:
+            parser_log.error('cannot use --node without --distribute')
 
     if not os.access('migrations', os.F_OK) and args.command != 'init':
         arg_parser.error('directory "migrations" not found')

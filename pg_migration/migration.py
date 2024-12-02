@@ -33,7 +33,7 @@ class Migration:
     head: Optional[Release]
     heads: List[Release]
 
-    def __init__(self, args, pg=None):
+    def __init__(self, args, pg=None, root='migrations'):
         self.args = args
         self.pg = pg
         self.chain = {}
@@ -42,7 +42,7 @@ class Migration:
         self.tails = []
         self.head = None
         self.heads = []
-        self.parse('migrations')
+        self.parse(root)
 
     @staticmethod
     def error(message):

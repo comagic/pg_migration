@@ -75,8 +75,8 @@ class Pg:
                      on l.oid = p.prolang
              inner join pg_trigger t
                      on t.tgfoid = p.oid
-             cross join plpgsql_check_function_tb(p.oid, coalesce(t.tgrelid, 0), 
-                                                  other_warnings := false, 
+             cross join plpgsql_check_function_tb(p.oid, t.tgrelid,
+                                                  other_warnings := false,
                                                   extra_warnings := false) as pcf
              where l.lanname = 'plpgsql' and
                    p.pronamespace <> 'pg_catalog'::regnamespace and
