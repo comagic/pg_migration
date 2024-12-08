@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import signal
 import sys
 from asyncio.subprocess import Process
 
@@ -28,12 +29,14 @@ class DistributeUpgrader:
     before_commit_commands: str
     commit_command: str
     is_up_to_date: bool
+    cancel_task: asyncio.Task
     stderr_reader_task: asyncio.Task
     current_version: str
 
-    def __init__(self, dsn: str, migration_path: str):
+    def __init__(self, dsn: str, migration_path: str, timeout: int):
         self.dsn = Dsn(dsn)
         self.migration_path = os.path.normpath(migration_path)
+        self.timeout = timeout
         root_dir = self.migration_path.split(os.sep)[:-2]
         if root_dir:
             self.root_dir = os.path.join(*root_dir)
@@ -109,9 +112,12 @@ class DistributeUpgrader:
             stderr=asyncio.subprocess.PIPE,
             cwd=psql_work_dir
         )
+        self.cancel_task = asyncio.create_task(self.cancel())
         self.stderr_reader_task = asyncio.create_task(self.stderr_reader())
         self.psql.stdin.write(self.before_commit_commands.encode('utf8'))
-        return await self.wait_psql(ready_string='READY TO COMMIT')
+        res = await self.wait_psql(ready_string='READY TO COMMIT')
+        self.cancel_task.cancel()
+        return res
 
     async def commit(self):
         if self.is_up_to_date:
@@ -130,3 +136,9 @@ class DistributeUpgrader:
     async def rollback(self):
         self.commit_command = 'rollback'
         await self.commit()
+
+    async def cancel(self):
+        if self.timeout:
+            await asyncio.sleep(self.timeout)
+            self.log(f'cancel upgrade by timeout {self.timeout}s')
+            self.psql.send_signal(signal.SIGINT)

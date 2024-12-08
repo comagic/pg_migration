@@ -1,6 +1,9 @@
 import argparse
+import asyncio
 import os
+import signal
 import sys
+from asyncio.subprocess import Process
 
 from .migration import Migration
 from .pg import Pg
@@ -10,6 +13,8 @@ class Upgrader:
     args: argparse.Namespace
     migration: Migration
     pg: Pg
+    psql: Process
+    cancel_task: asyncio.Task
 
     def __init__(self, args, migration, pg):
         self.args = args
@@ -35,15 +40,25 @@ class Upgrader:
         if not ahead:
             self.error('cannot determine ahead')
 
-        os.chdir('./schemas')
         for release in ahead:
             version = release.version
             if version == current_version:
                 continue
-            print(f'psql "{self.args.dsn}" -f ../migrations/{version}/release.sql')
-            code = os.system(f'psql "{self.args.dsn}" -f ../migrations/{version}/release.sql') >> 8
-            if code != 0:
-                os.chdir('..')
-                exit(code)
+            command = f'psql "{self.args.dsn}" -f ../migrations/{version}/release.sql'
+            print(command)
+            self.psql = await asyncio.create_subprocess_shell(
+                command,
+                cwd='./schemas'
+            )
+            self.cancel_task = asyncio.create_task(self.cancel())
+            await self.psql.wait()
+            self.cancel_task.cancel()
+            if self.psql.returncode != 0:
+                exit(1)
             await self.pg.set_current_version(version)
-        os.chdir('..')
+
+    async def cancel(self):
+        if self.args.timeout:
+            await asyncio.sleep(self.args.timeout)
+            print(f'cancel upgrade by timeout {self.args.timeout}s')
+            self.psql.send_signal(signal.SIGINT)
