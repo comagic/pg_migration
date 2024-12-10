@@ -60,9 +60,12 @@ async def run(args):
                 upgraders.append(DistributeUpgrader(dsn, migration_path, args.timeout))
             res = await asyncio.gather(*[upgrader.run_before_commit() for upgrader in upgraders])
             if res.count(DistributeUpgrader.READY) == len(upgraders):
-                await asyncio.gather(*[upgrader.commit() for upgrader in upgraders])
+                res = await asyncio.gather(*[upgrader.commit() for upgrader in upgraders])
+                if res.count(DistributeUpgrader.DONE) != len(upgraders):
+                    exit(1)
             else:
                 await asyncio.gather(*[upgrader.rollback() for upgrader in upgraders])
+                exit(1)
 
     elif args.command == 'plpgsql_check':
         pg = Pg(args)

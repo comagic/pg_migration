@@ -22,6 +22,8 @@ class Dsn:
 
 class DistributeUpgrader:
     READY = 'ready'
+    DONE = 'done'
+    ERROR = 'error'
     ready_cmd = '\\echo READY TO COMMIT\n'
     migration: Migration
     pg: Pg
@@ -121,7 +123,7 @@ class DistributeUpgrader:
 
     async def commit(self):
         if self.is_up_to_date:
-            return
+            return self.DONE
         if self.psql.returncode is None:
             self.psql.stdin.write(self.commit_command.encode('utf8'))
             self.psql.stdin.close()
@@ -130,8 +132,11 @@ class DistributeUpgrader:
         await self.stderr_reader_task
         if self.psql.returncode != 0:
             self.log(f'psql exited with error code: {self.psql.returncode}')
-        if self.commit_command != 'rollback':
-            await self.pg.set_current_version(self.version)
+            return self.ERROR
+        if self.commit_command == 'rollback':
+            return self.ERROR
+        await self.pg.set_current_version(self.version)
+        return self.DONE
 
     async def rollback(self):
         self.commit_command = 'rollback'
