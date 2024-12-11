@@ -24,7 +24,7 @@ class DistributeUpgrader:
     READY = 'ready'
     DONE = 'done'
     ERROR = 'error'
-    ready_cmd = '\\echo READY TO COMMIT\n'
+    ready_cmd = '\n\\echo READY TO COMMIT\n'
     migration: Migration
     pg: Pg
     psql: Process
@@ -44,6 +44,10 @@ class DistributeUpgrader:
             self.root_dir = os.path.join(*root_dir)
         else:
             self.root_dir = './'
+        if self.root_dir == './':
+            self.relative_migration_path = self.migration_path
+        else:
+            self.relative_migration_path = f'{self.migration_path[len(self.root_dir) + 1:]}'
         self.pg = Pg(self.dsn)
         self.migration = Migration(None, self.pg, os.path.join(self.root_dir, 'migrations'))
         self.version = self.migration_path.split(os.sep)[-1]
@@ -58,10 +62,17 @@ class DistributeUpgrader:
         print(f'{self.dsn.dbname}: {message}')
 
     def get_release_body(self):
-        body = open(os.path.join(self.migration_path, 'release.sql')).read()
-        self.before_commit_commands, self.commit_command = body.split('commit;')
+        file_name = os.path.join(self.migration_path, 'release.sql')
+        body = open(file_name).read()
+        if '\ncommit;' not in body:
+            self.error(f'cannot find "commit;" in {file_name}')
+        self.before_commit_commands, self.commit_command = body.split('\ncommit;')
         self.before_commit_commands += self.ready_cmd
-        self.commit_command = 'commit;' + self.commit_command
+        self.commit_command = 'commit;\n' + self.commit_command
+        self.before_commit_commands = self.before_commit_commands.replace(
+            '\\ir ',
+            f'\\i ../{self.relative_migration_path}/'
+        )
 
     async def stderr_reader(self):
         while True:
@@ -101,12 +112,8 @@ class DistributeUpgrader:
         self.check_ahead()
 
         psql_work_dir = os.path.join(self.root_dir, 'schemas')
-        if self.root_dir == './':
-            relative_migration_path = self.migration_path
-        else:
-            relative_migration_path = f'{self.migration_path[len(self.root_dir) + 1:]}'
         command = f'psql "postgresql://{self.dsn.dsn}"'
-        self.log(f'cd {psql_work_dir}; {command} -f ../{relative_migration_path}/release.sql')
+        self.log(f'cd {psql_work_dir}; {command} -f ../{self.relative_migration_path}/release.sql')
         self.psql = await asyncio.create_subprocess_shell(
             command,
             stdin=asyncio.subprocess.PIPE,

@@ -92,7 +92,7 @@ class Migration:
         ahead = []
         version = from_version
         if version not in self.releases:
-            self.error(f'version {version} not found')
+            self.error(f'version {version} not found in migrations/')
         release = self.releases[version]
         ahead.append(release)
         while release.children:
