@@ -1,5 +1,5 @@
+import asyncio
 import os
-import time
 
 import gitlab
 
@@ -11,7 +11,7 @@ class Gitlab:
         self.gl = gitlab.Gitlab(url, access_token, api_version='4')
         self.gl.auth()
 
-    def create_merge_request(self):
+    async def create_merge_request(self):
         project = self.gl.projects.get(os.environ['CI_PROJECT_ID'])
         branch = os.environ['CI_COMMIT_REF_NAME']
         message = f'auto-merge: {branch}'
@@ -21,11 +21,21 @@ class Gitlab:
             'title': message,
             'remove_source_branch': True
         })
-        time.sleep(6)
+        await asyncio.sleep(4)
         message = f"Merge branch '{branch}' into 'master'"
         if 'auto-deploy' in os.environ['CI_COMMIT_MESSAGE']:
             message = 'auto-deploy: ' + message
-        mr.merge(
-            merge_commit_message=message,
-            merge_when_pipeline_succeeds=True
-        )
+        for i in range(5):
+            try:
+                mr.merge(
+                    merge_commit_message=message,
+                    merge_when_pipeline_succeeds=True
+                )
+                break
+            except gitlab.exceptions.GitlabMRClosedError as e:
+                if 'Method Not Allowed' in str(e):
+                    print(f'Error: {e}')
+                    if i == 4:
+                        exit(1)
+                    print(f'trying again...')
+                    await asyncio.sleep(2)

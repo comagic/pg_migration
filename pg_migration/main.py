@@ -76,7 +76,7 @@ async def run(args):
         Initializer(args).initialize()
 
     elif args.command == 'auto_merge':
-        Gitlab().create_merge_request()
+        await Gitlab().create_merge_request()
 
     else:
         raise Exception(f'unknown command {args.command}')
