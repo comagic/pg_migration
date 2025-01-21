@@ -21,7 +21,7 @@ class Gitlab:
             'title': message,
             'remove_source_branch': True
         })
-        time.sleep(5)
+        time.sleep(6)
         message = f"Merge branch '{branch}' into 'master'"
         if 'auto-deploy' in os.environ['CI_COMMIT_MESSAGE']:
             message = 'auto-deploy: ' + message
