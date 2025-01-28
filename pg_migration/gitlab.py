@@ -2,6 +2,7 @@ import asyncio
 import os
 
 import gitlab
+import gitlab.const
 
 
 class Gitlab:
@@ -10,9 +11,27 @@ class Gitlab:
         access_token = os.environ['ACCESS_TOKEN']
         self.gl = gitlab.Gitlab(url, access_token, api_version='4')
         self.gl.auth()
+        self.user_id = os.environ['GITLAB_USER_ID']
+        self.project_id = os.environ['CI_PROJECT_ID']
+
+    def get_current_user_access_level(self):
+        url = f"/projects/{self.project_id}/members/all/{self.user_id}"
+        try:
+            member = self.gl.http_get(url)
+        except gitlab.exceptions.GitlabHttpError as e:
+            print(f'get user access level error: {e}')
+            return None
+        return member['access_level']
+
+    def check_permission(self):
+        access_level = self.get_current_user_access_level()
+        if access_level is None or access_level < gitlab.const.AccessLevel.MAINTAINER:
+            print('ERROR: permission denied: only maintainer can make merge request for auto-deploy / auto-merge')
+            exit(1)
 
     async def create_merge_request(self):
-        project = self.gl.projects.get(os.environ['CI_PROJECT_ID'])
+        self.check_permission()
+        project = self.gl.projects.get(self.project_id)
         branch = os.environ['CI_COMMIT_REF_NAME']
         message = f'auto-merge: {branch}'
         mr = project.mergerequests.create({
