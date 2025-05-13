@@ -27,6 +27,7 @@ class Upgrader:
         exit(1)
 
     async def upgrade(self):
+        self.migration.check_multi_head()
         current_version = await self.pg.get_current_version()
         if self.args.version is None:
             to_version = self.migration.head.version

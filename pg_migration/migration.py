@@ -8,6 +8,7 @@ from .pg import Pg
 
 
 Version = str
+AUTO_PARENT = 'auto'
 
 
 class Release:
@@ -21,6 +22,13 @@ class Release:
         self.parent_version = parent_version
         self.is_deleted = is_deleted
         self.children = []
+
+    def __str__(self):
+        deleted = ', deleted: True' if self.is_deleted else ''
+        return f'version: {self.version}{deleted}, parent: {self.parent_version}'
+
+    def __repr__(self):
+        return f'<Release ({str(self)})>'
 
 
 class Migration:
@@ -64,13 +72,22 @@ class Migration:
             header = open(file_name).readline()
             parent_version = self.get_parent_version(file_name, header)
             self.releases[version] = Release(version, parent_version)
+
+        auto_parent_releases = []
         for release in list(self.releases.values()):
             if release.parent_version:
-                if release.parent_version not in self.releases:
-                    self.releases[release.parent_version] = Release(release.parent_version, None, True)
-                parent = self.releases[release.parent_version]
-                release.parent = parent
-                parent.children.append(release)
+                if release.parent_version == AUTO_PARENT:
+                    auto_parent_releases.append(release)
+                else:
+                    if release.parent_version not in self.releases:
+                        self.releases[release.parent_version] = Release(release.parent_version, None, True)
+                    parent = self.releases[release.parent_version]
+                    release.parent = parent
+                    parent.children.append(release)
+
+        if len(auto_parent_releases) > 1:
+            self.error(f'only one release with "--parent_release: {AUTO_PARENT}" is allowed, '
+                       f'but multiple found: {self.str_versions(auto_parent_releases)}')
 
         self.tails = [
             release
@@ -83,10 +100,20 @@ class Migration:
         self.heads = [
             release
             for release in self.releases.values()
-            if not release.children
+            if not release.children and release.parent_version != AUTO_PARENT
         ]
         if len(self.heads) == 1:
             self.head = self.heads[0]
+
+        if auto_parent_releases:
+            auto_parent_release = auto_parent_releases[0]
+            if len(self.heads) != 1:
+                self.error(f'Cannot determine best candidate for release "{auto_parent_release.version}" '
+                           f'with "--parent_release: {AUTO_PARENT}", because multiple heads found: '
+                           f'{self.str_versions(self.heads)}')
+            auto_parent_release.parent = self.head
+            self.head.children.append(auto_parent_release)
+            self.head = auto_parent_release
 
     def get_ahead(self, from_version: Version, to_version: Version) -> List[Release]:
         ahead = []
@@ -107,9 +134,10 @@ class Migration:
         return ahead
 
     async def print_diff(self) -> None:
+        self.check_multi_head()
         db_version = await self.pg.get_current_version()
         if db_version and db_version not in self.releases:
-            self.error(f'database version {db_version} not found')
+            self.error(f'database version {db_version} not found in migrations/')
         for release in self.get_ahead(db_version, self.args.version):
             db_version_marker = '*' if release.version == db_version else ''
             print(f'{release.version}{db_version_marker}')
@@ -142,8 +170,8 @@ class Migration:
         if len(self.tails) > 1:
             self.error('several unrelated branches found')
 
-        if len(self.heads) > 1 and self.args.no_multi_heads:
-            self.error(f'multi head detected, use "pg_migration log" (without --no-multi-heads) for details')
+        if self.args.no_multi_heads:
+            self.check_multi_head()
 
     def print_branch(self, release, stop_version, level=0):
         tree = '| ' * level
@@ -163,3 +191,14 @@ class Migration:
                 for i in reversed(range(1, len(release.children))):
                     self.print_branch(release.children[i], stop_version, level+i)
                 release = release.children[0]
+
+    def check_multi_head(self):
+        if len(self.heads) > 1:
+            self.error(f'multi head detected: {self.str_versions(self.heads)}')
+
+    @staticmethod
+    def str_versions(releases):
+        return ', '.join(
+            release.version
+            for release in releases
+        )
