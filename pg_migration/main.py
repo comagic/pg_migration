@@ -10,6 +10,7 @@ from .plpgsql_checker import PlpgsqlChecker
 from .release_generator import ReleaseGenerator
 from .upgrader import Upgrader
 from .distribute_upgrader import DistributeUpgrader
+from . import __version__
 
 
 node_format = 'migration_path -> [user@]host:port/database'
@@ -100,7 +101,9 @@ def main():
         conflict_handler='resolve',
         # usage='pg_migration [-h] command ...'
     )
-
+    arg_parser.add_argument('--version',
+                            action='version',
+                            version=__version__)
     subparsers = arg_parser.add_subparsers(
         dest='command',
         title='commands'

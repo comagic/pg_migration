@@ -3,10 +3,13 @@ import sys
 from setuptools import find_packages, setup
 from setuptools.command.test import test as TestCommand
 
+from pg_migration import __version__
+
+
 PACKAGE_TYPE = 'pg-tools'
 PACKAGE_NAME = 'pg-migration'
 PACKAGE_DESC = 'postgres ci/cd automation'
-PACKAGE_VERSION = '1.1.5'
+PACKAGE_VERSION = __version__
 
 
 class PyTest(TestCommand):
