@@ -139,7 +139,7 @@ class Migration:
         if db_version and db_version not in self.releases:
             self.error(f'database version {db_version} not found in migrations/')
         for release in self.get_ahead(db_version, self.args.version):
-            db_version_marker = '*' if release.version == db_version else ''
+            db_version_marker = ' (db)' if release.version == db_version else ''
             print(f'{release.version}{db_version_marker}')
 
     def print_log(self) -> None:
