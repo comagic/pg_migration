@@ -31,6 +31,12 @@ def build_dsn(args):
     return ' '.join(parts)
 
 
+def dir_path(value):
+    if os.path.isdir(value):
+        return value
+    raise argparse.ArgumentTypeError(f"Cannot find directory: {value}")
+
+
 async def run(args):
     if args.command == 'diff':
         pg = Pg(args)
@@ -58,7 +64,7 @@ async def run(args):
                     exit(1)
                 migration_path, dsn = map(str.strip, node.split('->'))
                 migration_path = os.path.expanduser(migration_path)
-                upgraders.append(DistributeUpgrader(dsn, migration_path, args.timeout))
+                upgraders.append(DistributeUpgrader(dsn, migration_path, args.chain_migrations_path, args.timeout))
             res = await asyncio.gather(*[upgrader.run_before_commit() for upgrader in upgraders])
             if res.count(DistributeUpgrader.READY) == len(upgraders):
                 res = await asyncio.gather(*[upgrader.commit() for upgrader in upgraders])
@@ -142,6 +148,12 @@ def main():
         required=False,
         action='store_true',
         help='distribute transaction on multi node (--node)'
+    )
+    parser_upgrade.add_argument(
+        '--chain-migrations-path',
+        type=dir_path,
+        metavar='DIR_PATH',
+        help='path to migrations for calculate migration chain for all nodes'
     )
     parser_upgrade.add_argument('--node', action='append', help=f'format: "{node_format}"', default=[])
 

@@ -35,7 +35,7 @@ class DistributeUpgrader:
     stderr_reader_task: asyncio.Task
     current_version: str
 
-    def __init__(self, dsn: str, migration_path: str, timeout: int):
+    def __init__(self, dsn: str, migration_path: str, chain_migrations_path: str, timeout: int):
         self.dsn = Dsn(dsn)
         self.migration_path = os.path.normpath(migration_path)
         self.timeout = timeout
@@ -49,7 +49,8 @@ class DistributeUpgrader:
         else:
             self.relative_migration_path = f'{self.migration_path[len(self.root_dir) + 1:]}'
         self.pg = Pg(self.dsn)
-        self.migration = Migration(None, self.pg, os.path.join(self.root_dir, 'migrations'))
+        migration_root_path = chain_migrations_path or os.path.join(self.root_dir, 'migrations')
+        self.migration = Migration(None, self.pg, migration_root_path)
         self.version = self.migration_path.split(os.sep)[-1]
         self.get_release_body()
         self.is_up_to_date = False
