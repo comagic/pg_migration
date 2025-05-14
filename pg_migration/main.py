@@ -149,6 +149,12 @@ def main():
         'generate',
         help='generate migration file'
     )
+    parser_generate.add_argument(
+        '--real-parent-release',
+        required=False,
+        action='store_true',
+        help='add real parent_release, "--parent_release: auto" by default',
+    )
     parser_generate.add_argument('version', help='new version', nargs='?')
 
     parser_plpgsql_check = subparsers.add_parser(

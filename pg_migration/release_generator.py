@@ -85,8 +85,10 @@ class ReleaseGenerator:
             heads_versions = ", ".join(release.version for release in self.migration.heads)
             self.error(f'several heads found: "{heads_versions}", use "pg_migration log" for details')
 
+        parent_release = self.migration.head.version if self.args.real_parent_release else 'auto'
+
         return '\n'.join([
-            f'--parent_release: {self.migration.head.version}',
+            f'--parent_release: {parent_release}',
             '',
             '\\set ON_ERROR_STOP on',
             '',
