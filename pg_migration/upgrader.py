@@ -3,6 +3,7 @@ import asyncio
 import signal
 import sys
 from asyncio.subprocess import Process
+from typing import Union
 
 from .migration import Migration
 from .pg import Pg
@@ -12,8 +13,8 @@ class Upgrader:
     args: argparse.Namespace
     migration: Migration
     pg: Pg
-    psql: Process
-    cancel_task: asyncio.Task
+    psql: Union[Process, None]
+    cancel_by_timeout_task: asyncio.Task
     cancel_blocking_backends_task: asyncio.Task
     cancel_blocking_backends_timeout = 2
     application_name = 'pg_migration_deploy'
@@ -23,6 +24,7 @@ class Upgrader:
         self.args = args
         self.migration = migration
         self.pg = pg
+        self.psql = None
 
     def error(self, message):
         print(message, file=sys.stderr)
@@ -56,19 +58,24 @@ class Upgrader:
                 command,
                 cwd='./schemas'
             )
-            self.cancel_task = asyncio.create_task(self.cancel())
+            self.cancel_by_timeout_task = asyncio.create_task(self.cancel_by_timeout())
             self.cancel_blocking_backends_task = asyncio.create_task(self.cancel_blocking_backends())
             await self.psql.wait()
-            self.cancel_task.cancel()
+            self.cancel_by_timeout_task.cancel()
             self.cancel_blocking_backends_task.cancel()
             if self.psql.returncode != 0:
                 exit(1)
             await self.pg.set_current_version(version)
 
-    async def cancel(self):
+    async def cancel_by_timeout(self):
         if self.args.timeout:
             await asyncio.sleep(self.args.timeout)
             self.log(f'cancel upgrade by timeout {self.args.timeout}s')
+            self.cancel()
+
+    def cancel(self):
+        if self.psql and self.psql.returncode is None:
+            self.log('send SIGINT to psql')
             self.psql.send_signal(signal.SIGINT)
 
     async def cancel_blocking_backends(self):

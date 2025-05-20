@@ -119,12 +119,12 @@ class DistributeUpgrader(Upgrader):
             stderr=asyncio.subprocess.PIPE,
             cwd=psql_work_dir
         )
-        self.cancel_task = asyncio.create_task(self.cancel())
+        self.cancel_by_timeout_task = asyncio.create_task(self.cancel_by_timeout())
         self.cancel_blocking_backends_task = asyncio.create_task(self.cancel_blocking_backends())
         self.stderr_reader_task = asyncio.create_task(self.stderr_reader())
         self.psql.stdin.write(self.before_commit_commands.encode('utf8'))
         res = await self.wait_psql(ready_string='READY TO COMMIT')
-        self.cancel_task.cancel()
+        self.cancel_by_timeout_task.cancel()
         self.cancel_blocking_backends_task.cancel()
         return res
 

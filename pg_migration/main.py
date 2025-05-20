@@ -65,13 +65,31 @@ async def run(args):
                 migration_path, dsn = map(str.strip, node.split('->'))
                 migration_path = os.path.expanduser(migration_path)
                 upgraders.append(DistributeUpgrader(args, dsn, migration_path, args.chain_migrations_path))
-            res = await asyncio.gather(*[upgrader.run_before_commit() for upgrader in upgraders])
-            if res.count(DistributeUpgrader.READY) == len(upgraders):
-                res = await asyncio.gather(*[upgrader.commit() for upgrader in upgraders])
+
+            success_count = 0
+            for future in asyncio.as_completed([
+                upgrader.run_before_commit()
+                for upgrader in upgraders
+            ]):
+                res = await future
+                if res == DistributeUpgrader.READY:
+                    success_count += 1
+                else:
+                    for upgrader in upgraders:
+                        upgrader.cancel()
+
+            if success_count == len(upgraders):
+                res = await asyncio.gather(*[
+                    upgrader.commit()
+                    for upgrader in upgraders
+                ])
                 if res.count(DistributeUpgrader.DONE) != len(upgraders):
                     exit(1)
             else:
-                await asyncio.gather(*[upgrader.rollback() for upgrader in upgraders])
+                await asyncio.gather(*[
+                    upgrader.rollback()
+                    for upgrader in upgraders
+                ])
                 exit(1)
 
     elif args.command == 'plpgsql_check':
