@@ -79,7 +79,28 @@ class Pg:
                                                   other_warnings := false,
                                                   extra_warnings := false) as pcf
              where l.lanname = 'plpgsql' and
-                   p.pronamespace <> 'pg_catalog'::regnamespace and
-                   pcf.functionid::regproc::text <> 'utils.biu_check_query'
+                   p.prorettype = 'trigger'::regtype and
+                   p.pronamespace <> 'pg_catalog'::regnamespace
              order by 1, 2;
+        ''')
+
+    async def cancel_blocking_backends(self, main_application_name):
+        return await self.fetch(f'''
+            select a.pid,
+                   a.datname as database,
+                   a.usename as user,
+                   a.state,
+                   clock_timestamp() - a.query_start as duration,
+                   replace(substr(a.query, 1, 150), e'\n', '\n') as query,
+                   case
+                     when a.state = 'idle in transaction'
+                       then pg_terminate_backend(a.pid)
+                     else pg_cancel_backend(a.pid)
+                   end as cancel_backend
+              from pg_stat_activity da
+             cross join pg_blocking_pids(da.pid) bp(blocking_pids)
+             inner join pg_stat_activity a
+                     on a.pid = any(bp.blocking_pids)
+             where da.application_name = '{main_application_name}'
+             order by duration desc;
         ''')

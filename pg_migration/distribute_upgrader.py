@@ -1,12 +1,12 @@
+import argparse
 import asyncio
 import os
 import re
-import signal
 import sys
-from asyncio.subprocess import Process
 
 from .migration import Migration
 from .pg import Pg
+from .upgrader import Upgrader
 
 
 class Dsn:
@@ -20,25 +20,20 @@ class Dsn:
         self.port = int(self.port)
 
 
-class DistributeUpgrader:
+class DistributeUpgrader(Upgrader):
     READY = 'ready'
     DONE = 'done'
     ERROR = 'error'
     ready_cmd = '\n\\echo READY TO COMMIT\n'
-    migration: Migration
-    pg: Pg
-    psql: Process
     before_commit_commands: str
     commit_command: str
     is_up_to_date: bool
-    cancel_task: asyncio.Task
     stderr_reader_task: asyncio.Task
     current_version: str
 
-    def __init__(self, dsn: str, migration_path: str, chain_migrations_path: str, timeout: int):
+    def __init__(self, args: argparse.Namespace, dsn: str, migration_path: str, chain_migrations_path: str):
         self.dsn = Dsn(dsn)
         self.migration_path = os.path.normpath(migration_path)
-        self.timeout = timeout
         root_dir = self.migration_path.split(os.sep)[:-2]
         if root_dir:
             self.root_dir = os.path.join(*root_dir)
@@ -48,9 +43,10 @@ class DistributeUpgrader:
             self.relative_migration_path = self.migration_path
         else:
             self.relative_migration_path = f'{self.migration_path[len(self.root_dir) + 1:]}'
-        self.pg = Pg(self.dsn)
+        pg = Pg(self.dsn)
         migration_root_path = chain_migrations_path or os.path.join(self.root_dir, 'migrations')
-        self.migration = Migration(None, self.pg, migration_root_path)
+        migration = Migration(None, pg, migration_root_path)
+        super().__init__(args, migration, pg)
         self.version = self.migration_path.split(os.sep)[-1]
         self.get_release_body()
         self.is_up_to_date = False
@@ -59,8 +55,8 @@ class DistributeUpgrader:
         print(f'{self.dsn.dbname}: ERROR: {message}', file=sys.stderr)
         exit(1)
 
-    def log(self, message):
-        print(f'{self.dsn.dbname}: {message}')
+    def log(self, message, file=sys.stdout):
+        print(f'{self.dsn.dbname}: {message}', file=file)
 
     def get_release_body(self):
         file_name = os.path.join(self.migration_path, 'release.sql')
@@ -68,6 +64,7 @@ class DistributeUpgrader:
         if '\ncommit;' not in body:
             self.error(f'cannot find "commit;" in {file_name}')
         self.before_commit_commands, self.commit_command = body.split('\ncommit;')
+        self.before_commit_commands = f'{self.set_application_name}\n{self.before_commit_commands}'
         self.before_commit_commands += self.ready_cmd
         self.commit_command = 'commit;\n' + self.commit_command
         self.before_commit_commands = self.before_commit_commands.replace(
@@ -123,10 +120,12 @@ class DistributeUpgrader:
             cwd=psql_work_dir
         )
         self.cancel_task = asyncio.create_task(self.cancel())
+        self.cancel_blocking_backends_task = asyncio.create_task(self.cancel_blocking_backends())
         self.stderr_reader_task = asyncio.create_task(self.stderr_reader())
         self.psql.stdin.write(self.before_commit_commands.encode('utf8'))
         res = await self.wait_psql(ready_string='READY TO COMMIT')
         self.cancel_task.cancel()
+        self.cancel_blocking_backends_task.cancel()
         return res
 
     async def commit(self):
@@ -149,9 +148,3 @@ class DistributeUpgrader:
     async def rollback(self):
         self.commit_command = 'rollback'
         await self.commit()
-
-    async def cancel(self):
-        if self.timeout:
-            await asyncio.sleep(self.timeout)
-            self.log(f'cancel upgrade by timeout {self.timeout}s')
-            self.psql.send_signal(signal.SIGINT)

@@ -64,7 +64,7 @@ async def run(args):
                     exit(1)
                 migration_path, dsn = map(str.strip, node.split('->'))
                 migration_path = os.path.expanduser(migration_path)
-                upgraders.append(DistributeUpgrader(dsn, migration_path, args.chain_migrations_path, args.timeout))
+                upgraders.append(DistributeUpgrader(args, dsn, migration_path, args.chain_migrations_path))
             res = await asyncio.gather(*[upgrader.run_before_commit() for upgrader in upgraders])
             if res.count(DistributeUpgrader.READY) == len(upgraders):
                 res = await asyncio.gather(*[upgrader.commit() for upgrader in upgraders])
@@ -143,6 +143,12 @@ def main():
     add_connection_args(parser_upgrade)
     parser_upgrade.add_argument('version', help='upgrade up to this version', nargs='?')
     parser_upgrade.add_argument('--timeout', type=int, default=0)
+    parser_upgrade.add_argument(
+        '--force',
+        required=False,
+        action='store_true',
+        help='cancel blocking backends'
+    )
     parser_upgrade.add_argument(
         '--distribute',
         required=False,
