@@ -27,7 +27,7 @@ class Upgrader:
         self.psql = None
 
     def error(self, message):
-        print(message, file=sys.stderr)
+        print(f'error: {message}', file=sys.stderr)
         exit(1)
 
     def log(self, message, file=sys.stdout):
@@ -43,6 +43,7 @@ class Upgrader:
         if current_version == to_version:
             self.log('database is up to date')
             exit(0)
+
         release_time = await self.pg.get_release_time(to_version)
         if release_time:
             self.log(f'migration "{to_version}" already released "{release_time}", skip')
@@ -51,6 +52,11 @@ class Upgrader:
         ahead = self.migration.get_ahead(current_version, self.args.version)
         if not ahead:
             self.error('cannot determine ahead')
+
+        if len(ahead) > 2 and self.args.no_chain:
+            missed_release = Migration.str_versions(ahead[1:-1])
+            self.error(f'--no-chain: missed releases: {missed_release}\n'
+                       f'you need upgrade to missed releases before or do not use --no-chain')
 
         for release in ahead:
             version = release.version

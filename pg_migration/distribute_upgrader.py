@@ -96,7 +96,7 @@ class DistributeUpgrader(Upgrader):
             self.error('Cannot determine ahead')
 
         if len(ahead) != 2:
-            chain = ', '.join(release.version for release in ahead[1:])
+            chain = Migration.str_versions(ahead[1:])
             self.error(f'Cannot update several versions ahead at once in distribute mode: {chain}')
 
     async def run_before_commit(self):
