@@ -104,3 +104,15 @@ class Pg:
              where da.application_name = '{main_application_name}'
              order by duration desc;
         ''')
+
+    async def get_release_time(self, version):
+        res = await self.fetch(
+            '''
+            select release_time::timestamp(0)
+              from migration.release
+             where version = $1
+            ''',
+            version
+        )
+        if res:
+            return res[0]['release_time']

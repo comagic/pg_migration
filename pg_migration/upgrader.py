@@ -41,7 +41,11 @@ class Upgrader:
         else:
             to_version = self.args.version
         if current_version == to_version:
-            print('database is up to date')
+            self.log('database is up to date')
+            exit(0)
+        release_time = await self.pg.get_release_time(to_version)
+        if release_time:
+            self.log(f'migration "{to_version}" already released "{release_time}", skip')
             exit(0)
 
         ahead = self.migration.get_ahead(current_version, self.args.version)
@@ -53,7 +57,7 @@ class Upgrader:
             if version == current_version:
                 continue
             command = f'psql "{self.args.dsn}" -c "{self.set_application_name}" -f ../migrations/{version}/release.sql'
-            print(command)
+            self.log(command)
             self.psql = await asyncio.create_subprocess_shell(
                 command,
                 cwd='./schemas'
