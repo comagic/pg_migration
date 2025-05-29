@@ -168,6 +168,13 @@ def main():
         help='error if any release in the migrations chain missed to apply to the DB'
     )
     parser_upgrade.add_argument(
+        '--section',
+        required=False,
+        default='all',
+        choices=['pre-release', 'release', 'post-release', 'all'],
+        help='(default: all)'
+    )
+    parser_upgrade.add_argument(
         '--force',
         required=False,
         action='store_true',

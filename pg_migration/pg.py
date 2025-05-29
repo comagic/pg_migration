@@ -43,9 +43,10 @@ class Pg:
         if res:
             return res[0]['version']
 
-    async def set_current_version(self, version):
-        await self.execute('''
-            insert into migration.release(version)
+    async def add_release_version(self, version, section):
+        table = self.get_release_table(section)
+        await self.execute(f'''
+            insert into {table}(version)
               values ($1)
         ''', version)
 
@@ -105,14 +106,24 @@ class Pg:
              order by duration desc;
         ''')
 
-    async def get_release_time(self, version):
+    async def get_release_time(self, version, section='release'):
+        table = self.get_release_table(section)
         res = await self.fetch(
-            '''
+            f'''
             select release_time::timestamp(0)
-              from migration.release
+              from {table}
              where version = $1
             ''',
             version
         )
         if res:
             return res[0]['release_time']
+
+    @staticmethod
+    def get_release_table(section):
+        if section == 'release':
+            return 'migration.release'
+        elif section == 'pre-release':
+            return 'migration.pre_release'
+        elif section == 'post-release':
+            return 'migration.post_release'

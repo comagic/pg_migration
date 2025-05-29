@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import os
 import signal
 import sys
 from asyncio.subprocess import Process
@@ -36,46 +37,69 @@ class Upgrader:
     async def upgrade(self):
         self.migration.check_multi_head()
         current_version = await self.pg.get_current_version()
-        if self.args.version is None:
-            to_version = self.migration.head.version
-        else:
-            to_version = self.args.version
-        if current_version == to_version:
-            self.log('database is up to date')
-            exit(0)
-
-        release_time = await self.pg.get_release_time(to_version)
-        if release_time:
-            self.log(f'migration "{to_version}" already released "{release_time}", skip')
-            exit(0)
-
         ahead = self.migration.get_ahead(current_version, self.args.version)
         if not ahead:
             self.error('cannot determine ahead')
-
-        if len(ahead) > 2 and self.args.no_chain:
+        if len(ahead) > 2:
             missed_release = Migration.str_versions(ahead[1:-1])
-            self.error(f'--no-chain: missed releases: {missed_release}\n'
-                       f'you need upgrade to missed releases before or do not use --no-chain')
+            if self.args.no_chain:
+                self.error(f'--no-chain: missed releases: {missed_release}, '
+                           f'you need upgrade to missed releases before or do not use --no-chain')
+            if self.args.section != 'all':
+                self.error(f'missed releases: {missed_release}, '
+                           f'cannot upgrade releases chain with --section: {self.args.section} (only all)')
+        version = self.args.version or self.migration.head.version
+        if self.args.section == 'pre-release':
+            await self.upgrade_section(version, 'pre-release')
+        elif self.args.section == 'release':
+            await self.upgrade_section(version, 'release')
+        elif self.args.section == 'post-release':
+            await self.upgrade_section(version, 'post-release')
+        elif self.args.section == 'all':
+            if len(ahead) == 1:
+                self.log('database is up to date')
+                exit(0)
+            for release in ahead:
+                version = release.version
+                if version == current_version:
+                    continue
+                await self.upgrade_section(version, 'pre-release')
+                await self.upgrade_section(version, 'release')
+                await self.upgrade_section(version, 'post-release')
 
-        for release in ahead:
-            version = release.version
-            if version == current_version:
-                continue
-            command = f'psql "{self.args.dsn}" -c "{self.set_application_name}" -f ../migrations/{version}/release.sql'
-            self.log(command)
-            self.psql = await asyncio.create_subprocess_shell(
-                command,
-                cwd='./schemas'
-            )
-            self.cancel_by_timeout_task = asyncio.create_task(self.cancel_by_timeout())
-            self.cancel_blocking_backends_task = asyncio.create_task(self.cancel_blocking_backends())
-            await self.psql.wait()
-            self.cancel_by_timeout_task.cancel()
-            self.cancel_blocking_backends_task.cancel()
-            if self.psql.returncode != 0:
-                exit(1)
-            await self.pg.set_current_version(version)
+    async def upgrade_section(self, version, section):
+        release_time = await self.pg.get_release_time(version, section)
+        file = self.get_release_file(section)
+        if release_time:
+            self.log(f'migration {version}/{file} already released "{release_time}", skip')
+            return
+        file_path = f'migrations/{version}/{file}'
+        if not os.path.exists(file_path) and section in ('pre-release', 'post-release'):
+            self.log(f'file not exists: {file_path}, skip')
+            return
+        command = f'psql "{self.args.dsn}" -c "{self.set_application_name}" -f ../{file_path}'
+        self.log(command)
+        self.psql = await asyncio.create_subprocess_shell(
+            command,
+            cwd='./schemas'
+        )
+        self.cancel_by_timeout_task = asyncio.create_task(self.cancel_by_timeout())
+        self.cancel_blocking_backends_task = asyncio.create_task(self.cancel_blocking_backends())
+        await self.psql.wait()
+        self.cancel_by_timeout_task.cancel()
+        self.cancel_blocking_backends_task.cancel()
+        if self.psql.returncode != 0:
+            exit(1)
+        await self.pg.add_release_version(version, section)
+
+    @staticmethod
+    def get_release_file(section):
+        if section == 'release':
+            return 'release.sql'
+        elif section == 'pre-release':
+            return 'pre-release.sql'
+        elif section == 'post-release':
+            return 'post-release.sql'
 
     async def cancel_by_timeout(self):
         if self.args.timeout:
