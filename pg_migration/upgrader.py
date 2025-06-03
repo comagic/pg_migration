@@ -73,7 +73,7 @@ class Upgrader:
         if release_time:
             self.log(f'migration {version}/{file} already released "{release_time}", skip')
             return
-        file_path = f'migrations/{version}/{file}'
+        file_path = os.path.join('migrations', version, file)
         if not os.path.exists(file_path) and section in ('pre-release', 'post-release'):
             self.log(f'file not exists: {file_path}, skip')
             return

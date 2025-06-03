@@ -66,31 +66,39 @@ async def run(args):
                 migration_path = os.path.expanduser(migration_path)
                 upgraders.append(DistributeUpgrader(args, dsn, migration_path, args.chain_migrations_path))
 
-            success_count = 0
-            for future in asyncio.as_completed([
-                upgrader.run_before_commit()
-                for upgrader in upgraders
-            ]):
-                res = await future
-                if res == DistributeUpgrader.READY:
-                    success_count += 1
-                else:
-                    for upgrader in upgraders:
-                        upgrader.cancel()
+            if args.section == 'release':
+                success_count = 0
+                for future in asyncio.as_completed([
+                    upgrader.run_before_commit()
+                    for upgrader in upgraders
+                ]):
+                    res = await future
+                    if res == DistributeUpgrader.READY:
+                        success_count += 1
+                    else:
+                        for upgrader in upgraders:
+                            upgrader.cancel()
 
-            if success_count == len(upgraders):
+                if success_count == len(upgraders):
+                    res = await asyncio.gather(*[
+                        upgrader.commit()
+                        for upgrader in upgraders
+                    ])
+                    if res.count(DistributeUpgrader.DONE) != len(upgraders):
+                        exit(1)
+                else:
+                    await asyncio.gather(*[
+                        upgrader.rollback()
+                        for upgrader in upgraders
+                    ])
+                    exit(1)
+            else:
                 res = await asyncio.gather(*[
-                    upgrader.commit()
+                    upgrader.upgrade()
                     for upgrader in upgraders
                 ])
                 if res.count(DistributeUpgrader.DONE) != len(upgraders):
                     exit(1)
-            else:
-                await asyncio.gather(*[
-                    upgrader.rollback()
-                    for upgrader in upgraders
-                ])
-                exit(1)
 
     elif args.command == 'plpgsql_check':
         pg = Pg(args)
@@ -233,9 +241,11 @@ def main():
 
     if args.command == 'upgrade':
         if args.distribute and not args.node:
-            parser_log.error('cannot use --distribute without any --node')
+            parser_upgrade.error('cannot use --distribute without any --node')
         if args.node and not args.distribute:
-            parser_log.error('cannot use --node without --distribute')
+            parser_upgrade.error('cannot use --node without --distribute')
+        if args.distribute and args.section == 'all':
+            parser_upgrade.error('cannot use --section all with --distribute, you need upgrade each section separate')
 
     if not os.access('migrations', os.F_OK) and args.command != 'init':
         arg_parser.error('directory "migrations" not found')
