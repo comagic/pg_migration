@@ -20,6 +20,7 @@ class Upgrader:
     cancel_blocking_backends_timeout = 2
     application_name = 'pg_migration_deploy'
     set_application_name = f"set application_name = '{application_name}';"
+    set_release_version = "set pg_migration.release_version = '{version}';"
 
     def __init__(self, args, migration, pg):
         self.args = args
@@ -77,7 +78,10 @@ class Upgrader:
         if not os.path.exists(file_path) and section in ('pre-release', 'post-release'):
             self.log(f'file not exists: {file_path}, skip')
             return
-        command = f'psql "{self.args.dsn}" -c "{self.set_application_name}" -f ../{file_path}'
+        command = (f'psql "{self.args.dsn}"'
+                   f' -c "{self.set_release_version.format(version=version)}"'
+                   f' -c "{self.set_application_name}"'
+                   f' -f ../{file_path}')
         self.log(command)
         self.psql = await asyncio.create_subprocess_shell(
             command,

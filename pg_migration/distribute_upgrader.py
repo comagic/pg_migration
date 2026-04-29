@@ -63,7 +63,9 @@ class DistributeUpgrader(Upgrader):
         if '\ncommit;' not in body:
             self.error(f'cannot find "commit;" in {file_name}')
         self.before_commit_commands, self.commit_command = body.split('\ncommit;')
-        self.before_commit_commands = f'{self.set_application_name}\n{self.before_commit_commands}'
+        self.before_commit_commands = (f'{self.set_application_name}\n'
+                                       f'{self.set_release_version.format(version=self.version)}\n'
+                                       f'{self.before_commit_commands}')
         self.before_commit_commands += self.ready_cmd
         self.commit_command = 'commit;\n' + self.commit_command
         self.before_commit_commands = self.before_commit_commands.replace(
@@ -154,7 +156,10 @@ class DistributeUpgrader(Upgrader):
             self.log(f'file not exists: {self.file_path}, skip')
             return self.DONE
 
-        command = f'psql "{self.dsn.dsn}" -c "{self.set_application_name}" -f ../{self.relative_file_path}'
+        command = (f'psql "{self.dsn.dsn}"'
+                   f' -c "{self.set_application_name}"'
+                   f' -c "{self.set_release_version.format(version=self.version)}"'
+                   f' -f ../{self.relative_file_path}')
         self.log(f'cd {self.psql_work_dir}; {command}')
         self.psql = await asyncio.create_subprocess_shell(
             command,
