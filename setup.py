@@ -38,9 +38,9 @@ setup_requires = []
 
 install_requires = [
     'asyncpg>=0.27.0,<0.31.0',
-    'GitPython==3.1.42',
-    'urllib3==1.26.6',
-    'python-gitlab==4.4.0'
+    'GitPython>=3.1.42',
+    'urllib3>=1.26.6',
+    'python-gitlab>=4.4.0'
 ]
 
 tests_require = [
