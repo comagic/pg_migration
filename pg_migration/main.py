@@ -16,6 +16,14 @@ from . import __version__
 node_format = 'migration_path -> [user@]host:port/database'
 
 
+def parse_node(node):
+    if '->' not in node:
+        print(f'node "{node}" not match format "{node_format}"')
+        exit(1)
+    migration_path, dsn = map(str.strip, node.split('->'))
+    return os.path.expanduser(migration_path), dsn
+
+
 def build_dsn(args):
     parts = []
     if getattr(args, 'host', None):
@@ -59,12 +67,13 @@ async def run(args):
         else:
             upgraders = []
             for node in args.node:
-                if '->' not in node:
-                    print(f'node "{node}" not match format "{node_format}"')
-                    exit(1)
-                migration_path, dsn = map(str.strip, node.split('->'))
-                migration_path = os.path.expanduser(migration_path)
+                migration_path, dsn = parse_node(node)
                 upgraders.append(DistributeUpgrader(args, dsn, migration_path, args.chain_migrations_path))
+            for node in args.optional_node:
+                migration_path, dsn = parse_node(node)
+                upgraders.append(DistributeUpgrader(
+                    args, dsn, migration_path, args.chain_migrations_path, optional=True
+                ))
 
             if args.section == 'release':
                 success_count = 0
@@ -201,6 +210,13 @@ def main():
         help='path to migrations for calculate migration chain for all nodes'
     )
     parser_upgrade.add_argument('--node', action='append', help=f'format: "{node_format}"', default=[])
+    parser_upgrade.add_argument(
+        '--optional-node',
+        action='append',
+        help=f'same format as --node: "{node_format}"; '
+             f'skip missing migration file for release section but still write migration.release',
+        default=[],
+    )
 
     parser_generate = subparsers.add_parser(
         'generate',
@@ -244,6 +260,10 @@ def main():
             parser_upgrade.error('cannot use --distribute without any --node')
         if args.node and not args.distribute:
             parser_upgrade.error('cannot use --node without --distribute')
+        if args.optional_node and not args.distribute:
+            parser_upgrade.error('cannot use --optional-node without --distribute')
+        if args.optional_node and not args.chain_migrations_path:
+            parser_upgrade.error('cannot use --optional-node without --chain-migrations-path')
         if args.distribute and args.section == 'all':
             parser_upgrade.error('cannot use --section all with --distribute, you need upgrade each section separate')
 

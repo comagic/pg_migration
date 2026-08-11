@@ -28,16 +28,29 @@ class DistributeUpgrader(Upgrader):
     before_commit_commands: str
     commit_command: str
     is_up_to_date: bool
+    is_file_missing: bool
+    optional: bool
     stderr_reader_task: asyncio.Task
 
-    def __init__(self, args: argparse.Namespace, dsn: str, migration_path: str, chain_migrations_path: str):
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        dsn: str,
+        migration_path: str,
+        chain_migrations_path: str,
+        optional: bool = False,
+    ):
         self.dsn = Dsn(dsn)
+        self.optional = optional
         self.migration_path = os.path.normpath(migration_path)
         self.version = self.migration_path.split(os.sep)[-1]
         root_dir = self.migration_path.split(os.sep)[:-2]
         self.root_dir = os.path.join(*root_dir) if root_dir else '.'
         pg = Pg(self.dsn)
-        migration_root_path = chain_migrations_path or os.path.join(self.root_dir, 'migrations')
+        if optional:
+            migration_root_path = chain_migrations_path
+        else:
+            migration_root_path = chain_migrations_path or os.path.join(self.root_dir, 'migrations')
         migration = Migration(None, pg, migration_root_path)
         super().__init__(args, migration, pg)
         self.psql_work_dir = os.path.join(self.root_dir, 'schemas')
@@ -49,6 +62,7 @@ class DistributeUpgrader(Upgrader):
         self.relative_file_path = os.path.join(self.relative_migration_path, file)
         self.file_path = os.path.join(self.migration_path, file)
         self.is_up_to_date = False
+        self.is_file_missing = False
 
     def error(self, message):
         print(f'{self.dsn.dbname}: ERROR: {message}', file=sys.stderr)
@@ -101,6 +115,16 @@ class DistributeUpgrader(Upgrader):
             self.error(f'Cannot update several versions ahead at once in distribute mode: {chain}')
 
     async def run_before_commit(self):
+        if self.optional and not os.path.exists(self.file_path):
+            await self.pg.init_connection()
+            if await self.check_already_released():
+                self.is_up_to_date = True
+                return self.READY
+            await self.check_ahead()
+            self.log(f'file not exists: {self.file_path}, skip')
+            self.is_file_missing = True
+            return self.READY
+
         self.get_release_body()
         await self.pg.init_connection()
         if await self.check_already_released():
@@ -129,6 +153,9 @@ class DistributeUpgrader(Upgrader):
     async def commit(self):
         if self.is_up_to_date:
             return self.DONE
+        if self.is_file_missing:
+            await self.pg.add_release_version(self.version, 'release')
+            return self.DONE
         if self.psql.returncode is None:
             self.psql.stdin.write(self.commit_command.encode('utf8'))
             self.psql.stdin.close()
@@ -144,6 +171,8 @@ class DistributeUpgrader(Upgrader):
         return self.DONE
 
     async def rollback(self):
+        if self.is_up_to_date or self.is_file_missing:
+            return
         self.commit_command = 'rollback'
         await self.commit()
 
